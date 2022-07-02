@@ -1,0 +1,1167 @@
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Multiple Zeta Values online tools</title>
+    <script src="https://sagecell.sagemath.org/static/embedded_sagecell.js"></script>
+    <script>
+    // Make the div with id 'mycell' a Sage cell
+    sagecell.makeSagecell({inputLocation:  'div.precompute',
+                           editor: 'codemirror-readonly',
+                           hide: ['output', 'editor'],
+                           linked: 'true',
+                           linkKey: 'main',
+                           evalButtonText: 'Activate'});
+    // Make *any* div with class 'compute' a Sage cell
+    sagecell.makeSagecell({inputLocation: 'div.compute',
+                           linked: 'true',
+                           linkKey: 'main',
+                           evalButtonText: 'Evaluate'});
+    </script>
+    <style>
+      .example {
+        color: black;
+        background-color: #EEEEEE;
+        width: auto*;
+      }
+      .example_output {
+        color:black;
+        background-color: #e0e0e0;
+      }
+    </style>
+  </head>
+  <body>
+  <h1>Multiple Zeta Values online tools</h1>
+  Click the &ldquo;Activate&rdquo; button below first.
+    <div class="precompute"><script type="text/x-sage">
+import numpy as np #numpy を np としてインポートする
+
+class mzv():
+    
+    index=np.array([]) # index に numpyのarray型に空のリストを入れたものを格納する
+    
+    def __init__(self,*args): #インスタンス化メソッド (初期値の設定)
+        #self.index=np.array(args,dtype=object) with this we can use mzv(3,2,1) instead of mzv([3,2,1]). But also need to change in the rest of the program
+        if len(args) == 1: #入力された値(arg)の長さが1である場合
+            self.index=np.array(args[0],dtype=object) #self.indexにnumpyのarray型で文字列args[0]を格納する
+                                                        #つまり初期値で１文字の時char型でなく文字列として格納するようにする
+    
+    def weight(self):
+        return self.index.sum()
+    # Length of a mzv
+    #mzvの長さの定義
+    def len(self):
+        return len(self.index)
+    
+    def toMZV(self):
+        return gp.zetamult(self.index.tolist())
+    
+    # When are two mzvs the same?
+    #mzvの値が等しい時の定義
+    def __eq__(self, other):  #__eq__ := ''=''
+        return np.array_equal(self.index, other.index)
+    
+    def __neg__(self):
+        return -1*self
+            
+    #引き算の定義
+    def __sub__(self, other):#__sub__ := ''-''
+        return self+(-1)*other #既に和が定義されているため-(1)倍を利用して定義する
+        
+    # Adding two mzvs into one linear combination    
+    #mzvの(相手がwrodlincombの元でも大丈夫)の和の定義 (返す時の元はmzvlincombの元であることに注意)
+    def __add__(self,other):
+
+        #Check if other is mzvlincomb
+        if isinstance(other,mzvlincomb): #other が　mzvlincombの元であるときは　以下の処理を行う
+            return mzvlincomb(self) + other #selfをmzvlincombの型としてother を加える
+        
+        #以下はother と self が共に　mzv である状況
+        ret=mzvlincomb() #空のmzv を用意する
+        ret.addmzv(1,self) #係数を１としてselfを ret(空のmzv) に加える
+        ret.addmzv(1,other)#係数を１としてotherを ret(係数1のself が入ったmzv) に加える
+        
+        return ret #上で計算した　ret  (mzvlincomb型)を返す
+    
+    # Removes the first letter of this mzv 
+    # mzvの最初の文字を削除するための関数　　（のちにHormonic productで使うため　）
+    def removeFirstLetter(self):
+        if len(self.index)==1: #最初からmzvの長さが1である場合は空のmzvを返す
+            return mzv()
+        else: #その他の場合(長さが１より長い)
+            return mzv(self.index[1:]) #最初のmzvから先頭の一文字消した値を返す
+                
+    # Translates the mzv in z_j into the 01-alphabet
+    #入力されたmzv　の値を0, 1で変換する。 (dualなどで利用できる)
+    def makeXY(self):
+        z=[] #リスト型の空の z を用意する
+        for w in self.index:
+            for j in range(w-1): #jがw-1個 z に [0]を追加する
+                    z.append(0) 
+            z.append(1) #ループ終わりに　[1]を追加する (つまり、w個目に初めて１が出るリスト)
+            
+        return mzv(z) #用意した z をmzv型に変換して返す
+    
+    
+    # Translates the mzv in 01 into the z-alphabet
+    #入力された(0と1からなる)　mzvの値を 一般の形で変換する。 (dualなどで利用できる)
+    def makeZ(self):
+        z=[] #空のリスト型 z を用意する
+        i=0 #カウント用の変数
+        for w in self.index: 
+            if w==0: #self.index (mzv型)に格納されている値が０であるとき　
+                i+=1 #i　に１を加える
+            elif w==1:#self.index (mzv型)に格納されている値が1であるとき　i　に１を加える
+                i+=1 #i　に１を加える
+                z.append(i) #z にこれまで数えてきた [i] を追加する
+                i=0 # i を0に戻す
+        return mzv(z) # zをmzv型にして返す
+    
+    #Dual of this mzv
+    #mzvに対しての "Dual"関数の定義
+    def dual(self):
+        t=self.makeXY() #用意されたmzvをmakeXY関数により0,1に変換したものを t に格納
+            
+        for i in range(len(t.index)): #tの長さだけループする
+            if t.index[i]==0: #tの i　番目の 0 であるとき
+                t.index[i]=1 #t の　i 番目を１にする
+            elif t.index[i]==1:#tの i　番目の 0 であるとき
+                t.index[i]=0 #t の　i 番目を0にする
+                
+        l=t.index[::-1] #tの並び順を反転させたものを l に格納する (l　は　リスト型)
+        
+        return mzv(l).makeZ() #lをmzv型にしてmakeZ関数を通してz_  の形にする
+    
+
+    # harmonic product 
+    #mzv型での調和積を*を用いて定義(ここでの定義はmzvlincomb で定義されたものを引用しているため詳しい仕組みはそちらで確認)
+    def __mul__(self, other):
+        # make the mzv into a linear combination and use the multiplication of lincomb
+        return other*mzvlincomb(self)
+
+    # shuffle product
+    #mzv型でのシャッフル積を%を用いて定義(ここでの定義はmzvlincomb で定義されたものを引用しているため詳しい仕組みはそちらで確認)
+    def __mod__(self, other):
+        return other % mzvlincomb(self)
+        
+    # index shuffle product      
+    #mzv型でのindex シャッフル積を**を用いて定義(ここでの定義はmzvlincomb で定義されたものを引用しているため詳しい仕組みはそちらで確認)
+    def __pow__(self, other):
+        # make the mzv into a linear combination and use the multiplication of lincomb
+        return other**mzvlincomb(self)
+                    
+    # Scalar multiplication
+    #mzv型のスカラー倍を定義する(返すのはmzvlincomb型である)
+    def __rmul__(self, other): #rmul は* の演算子であり右側の元のルールに従う (mulは左)
+        if isinstance(other,sage.rings.rational.Rational) or isinstance(other,sage.rings.integer.Integer):
+            #otherが　有理数(整数を含む)型である場合
+            return mzvlincomb(other,self) #other が先頭のmzvlincomb型を返す
+
+    
+    #文字列表現のためのメソッド(オリジナルのルールで文字列を作成する)
+    def __str__(self):
+        if len(self.index)==0: #値(mzv型)が空の場合 文字列としての[]を返す
+            return "[]"
+        else: #値(mzv型)が空でない場合 文字列として返す(self.index[1:-1]は最初の"["と最後の"]”を省略するために用いている)
+            return "["+str(self.index)[1:-1].replace(" ", ",")+"]"
+    
+    # Todo: Given back the mzv in latex form. Instead of "[1,2,3]" give "z_1 z_2 z_3"
+    def toLatex(self):
+            
+            s=""
+            for i in range(len(self.index.tolist())):
+                s+="z_"+str(self.index.tolist()[i]) + " "
+                
+            s=s[:-1]
+            
+            return s
+        
+        
+        
+        
+    def toHoffman(self):
+
+        if isHoffman(self.index.tolist()):
+            return mzvlincomb(self)
+        
+        ss=mzvlincomb()
+        rel=mzvlincomb()
+        rel.addmzv(1,self)
+        k=sum(self.index.tolist())
+        A=conjecturematrix(k)[0]
+        B=indvectorlist(rel)
+        for u in sorted(where23(k), reverse=True):
+                del B[u]
+        
+        #print(B)
+        s=remove23(k)
+        #Y=A[s,[j for j in range(len(s))]]
+        Y=A[s]
+        x=Y.solve_right(vector(B))
+        #print(x)
+        #print(Y)
+        U=-A*x    
+        
+        for n in where23(k):
+            t=np.array(indices(k)[n])
+            if U[n] != 0:
+                ss.addmzv(U[n],mzv(t))
+            
+        return ss
+    
+    
+    def toHoffmanN(self,prec=100):
+        gp.set_precision(prec)
+        k=sum(self.index.tolist())
+        l=[]
+        rel=mzvlincomb()
+        s=[self.toMZV()];
+        
+        # check precision gp.get_precision()
+        # if it is too small change with gp.set_precision(prec)
+        
+        for i in where23(k):
+            l+=[indices(k)[i]]
+            
+        for m in l:
+            s+=[(-1)*mzv(np.array(m)).toMZV()]
+        
+        lis=list(gp.lindep(s))
+        
+        print(lis) 
+        
+        dd=lis[0]
+        lis=lis[1:]
+        i=0
+        
+        for n in lis:
+            rel.addmzv(n/dd,mzv(np.array(l[i])))
+            i+=1
+            
+        return rel
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    def simplify(self):
+
+        if simplify(self.index.tolist()):
+            return mzvlincomb(self)
+        
+        ss=mzvlincomb()
+        rel=mzvlincomb()
+        rel.addmzv(1,self)
+        k=sum(self.index.tolist())
+        A=conjecturematrix(k)[0]
+        B=indvectorlist(rel)
+        for u in sorted(where23(k), reverse=True):
+                del B[u]
+        print(B)
+        s=remove23(k)
+        #Y=A[s,[j for j in range(len(s))]]
+        Y=A[s]
+        x=Y.solve_right(vector(B))
+        #print(x)
+        #print(Y)
+        U=-A*x    
+        
+        for n in where23(k):
+            t=np.array(indices(k)[n])
+            if U[n] != 0:
+                ss.addmzv(U[n],mzv(t))
+            
+        return ss
+    
+    
+    
+    
+    
+    
+    
+    
+
+    def toMZVLatex(self):      
+        print(self.toMZVLatex1())
+        return 
+
+    def toMZVLatex1(self):
+        s=self.toLatex()
+        
+        s1='\\'
+        s1+="zeta("
+        d = {' ': ',', 'z': None, '_':None}  
+        tbl = str.maketrans(d)  
+        s1 += s.translate(tbl)
+        s1+=')'
+
+        return s1
+    
+    
+    def regst(self): # ind : mzv
+
+        t=self.makeXY()
+        j=0
+
+        while(1):
+        
+            if len(t.index.tolist())==0:
+                #  return "困った"
+                break
+            
+            if t.index[0]==0:
+                    break
+            j+=1
+            t=t.removeFirstLetter()
+            
+        w=t.makeZ() #w_0
+
+        s=mzvlincomb()
+
+        for i in range(j+1):
+            p=[]
+            p=countY(j-i).index.tolist()+w.index.tolist()
+            s.addLinComb((-1)^(i)/factorial(i)*contistY(i)*mzv(p))
+            # print(s)
+        
+        if len(s.lincomb)==0:
+            return 0
+    
+        return s
+    
+    
+    def regsh(self): # ind : mzv
+        t= self.makeXY()
+        j=0
+
+        while(1):
+            if len(t.index.tolist())==0:
+                # return "困った"
+                break
+            
+            if t.index[0]==0:
+                    break
+            j+=1
+            t=t.removeFirstLetter()
+            
+    
+        w=t.makeZ() #w_0
+        s=mzvlincomb()
+        for i in range(j+1):
+            p=[]
+            p=countY(j-i).index.tolist()+w.index.tolist()
+            s.addLinComb((-1)^(i)*countY(i)%mzv(p)) 
+            # print(s)
+        
+        if len(s.lincomb)==0:
+            return 0
+    
+        return s
+        
+    
+            
+
+    #文字列表現のためのメソッド(既存の計算などがある公式的な文字列表現)
+    def __repr__(self):
+        return "ζ"+str(self.index).replace("[","(").replace("]",")").replace(" ",",")
+    
+    
+    # mzv型 と (mzv型もしくはmzvlincomb型)の間の演算子& を定義 (後に調和積の定義で用いる)
+    #あるmzvを他のmzvもしくはworlincombのmzvにあたる部分にそれぞれ追加していく役割を持つ。(最初のmzvが左にくる)
+    def __and__(self, other):
+        
+        if isinstance(other,mzvlincomb): #otherがmzvlincomb型の場合
+            ret=mzvlincomb()  #retを空のmzvlincomb型と定義する
+            
+            for w in other.lincomb: #self(mzv型)と w[1] (mzv型)を連結したmzvと w[1]の係数の役割を持つw[0]をret (mzvlincomb型)に格納していく
+                ret.addmzv(w[0], self & w[1])
+            
+            return ret # ret(mzvlincomb型)を返す
+            
+        if isinstance(other, mzv): #otherがmzv型の場合
+            return mzv(np.concatenate((self.index,other.index))) #selfとotherを連結した値(mzv型)を返す
+    
+#mzv の線型結合を意識したclass 
+#値は [ [factor, mzv]  , [factor2, mzv2] , ...      ] の形になるようにする
+class mzvlincomb:
+
+    lincomb=[];  #空のリスト型lincombを用意する
+    
+
+    def __init__(self,*args):  
+        self.lincomb=[]  #空のリスト型lincombを用意する
+        
+        if len(args)==1: #　argsの長さが1である場合
+            self.addmzv(1,args[0]) #self に係数 1, mzv args[0] を格納する
+            
+        if len(args)==2: #　argsの長さが２である場合
+            self.addmzv(args[0],args[1]) #self に係数 args[0], mzv args[1] を格納する
+        
+        pass  
+    
+    def makeXY(self): #mzvlincomb型の値を引数にしたmakeXY関数の作成
+        ret = mzvlincomb(); #空のmzvlincomb型のretを用意する
+        
+        for w in self.lincomb: #引数のmzvlincombから係数とその組となるmzvにmakeXY関数により０、１に変換した値を用意した　ret　に格納する
+            ret.addmzv(w[0],w[1].makeXY())
+        
+        return ret # ret を返す
+    def weight(self):
+        
+        if self.lincomb==[]:
+            return 0
+        
+        return self.lincomb[0][1].weight()
+        
+    def makeZ(self):
+        ret = mzvlincomb(); #空のmzvlincomb型のretを用意する
+        
+        for w in self.lincomb:  #引数のmzvlincombから係数とその組となるmzvにmakeZ関数により数値（自然数）に変換した値を用意した　ret　に格納する
+            ret.addmzv(w[0],w[1].makeZ())
+        
+        return ret # ret を返す
+        
+        # Scalar multiplication from the left
+        #mzvlincomb型のスカラー倍を定義する(返すのはmzvlincomb型である)
+    def __rmul__(self, other): #rmul は* の演算子であり右側の元のルールに従う (mulは左)
+        if isinstance(other,sage.rings.rational.Rational) or isinstance(other,sage.rings.integer.Integer):#otherが　有理数(整数を含む)型である場合
+            ret=mzvlincomb(); #空のmzvlincomb型のretを用意する
+            for w in self.lincomb:  #引数のmzvlincombから係数と引数otherの積と組となるmzvを用意した　ret　に格納する
+                ret.addmzv(w[0]*other,w[1])
+            return ret # ret を返す
+        return NotImplemented #左側の定義で処理する（下の__mul__の演算処理が行われる）
+    
+    # harmonic product & scalar multiplication from the right
+    #mzvlincomb型での調和積を*を用いて定義 (右からのスカラー倍も同時に定義する)
+    def __mul__(self, other):
+        
+        # Scalar multiplication from the right 
+        #右からのスカラー倍の定義する
+        if isinstance(other,sage.rings.rational.Rational) or isinstance(other,sage.rings.integer.Integer):
+            #otherが　有理数(整数を含む)型である場合
+            ret=mzvlincomb(); #空のmzvlincomb型のretを用意する
+            for w in self.lincomb: #引数のmzvlincombから係数と引数otherの積と組となるmzvを用意した　ret　に格納する
+                ret.addmzv(w[0]*other,w[1])
+            return ret # ret を返す       
+        
+        if isinstance(other,mzv): #otherが　mzv型である場合
+            other=mzvlincomb(other) #mzv型をmzvlincomb型にする
+            
+        ret=mzvlincomb() #空のmzvlincomb型のretを用意する
+        
+        
+        # Harmonic product
+        #調和積の定義
+        for w in self.lincomb:
+            #参考　　（H1） w * 1 = 1 * w = w
+            for v in other.lincomb:
+                if w[1].len()==0: #self に格納された mzv の長さが 0　である場合
+                    ret.addmzv(w[0]*v[0],v[1]) # ret に　上の mzv と other の mzv の係数の積　と other の mzv を ret に格納する 
+                elif v[1].len()==0: #other に格納された mzv の長さが 0　である場合
+                    ret.addmzv(w[0]*v[0],w[1]) # ret に　上の mzv と other の mzv の係数の積　と self の mzv を ret に格納する 
+                else: #その他の場合
+            #参考   (H2)z_p w1 * z_q w2 = z_p (w1 * z_q w2) + z_q(z_p w1 * w2) + z_p+q(w1 * w2)
+                    a=w[1].index[0] # w の mzv の最初の一文字を a に格納する
+                    b=v[1].index[0] # v の mzv の最初の一文字を a に格納する
+                    
+                    #z_p (w1 * z_q w2)
+                    ret.addLinComb( w[0]*v[0] * (mzv([a]) & (w[1].removeFirstLetter() * mzvlincomb(v[1]) )) )
+                    #z_q(z_p w1 * w2)
+                    ret.addLinComb( w[0]*v[0] * (mzv([b]) & (mzvlincomb(w[1]) * v[1].removeFirstLetter() ) )) 
+                    #z_p+q(w1 * w2)
+                    ret.addLinComb( w[0]*v[0] * (mzv([a+b]) & (w[1].removeFirstLetter() * v[1].removeFirstLetter() )) )
+        return ret # ret を返す
+    
+    
+    #mzvlinconb型のshuffle積を%を用いて定義する
+    def __mod__(self, other):
+        return (self.makeXY() ** other.makeXY()).makeZ() #seelfとotherをmakeXY関数(mzvlincomb用の方)を用いてそれぞれのmzvを0,1に変換し
+                                                        #shuffle積__pow__(**)を行いmakeZ関数により　z_  の形にする
+    
+    
+    #mzvlincomb型でのシャッフル積を**を用いて定義 (右からのスカラー倍も同時に定義する)
+    # shuffle product & scalar multiplication from the right
+    def __pow__(self, other):
+        
+        # Scalar multiplication from the right 
+        #右からのスカラー倍の定義する
+        if isinstance(other,sage.rings.rational.Rational) or isinstance(other,sage.rings.integer.Integer):
+            #otherが　有理数(整数を含む)型である場合
+            ret=mzvlincomb(); #空のmzvlincomb型のretを用意する
+            for w in self.lincomb:  #引数のmzvlincombから係数と引数otherの積と組となるmzvを用意した　ret　に格納する
+                ret.addmzv(w[0]*other,w[1])
+            return ret  # ret を返す        
+        
+        if isinstance(other,mzv):#otherが　mzv型である場合
+            other=mzvlincomb(other) #mzv型をmzvlincomb型にする
+            
+        ret=mzvlincomb() #空のmzvlincomb型のretを用意する
+        
+        # Shuffle product
+        #シャッフル積の定義
+        for w in self.lincomb:
+            #参考 (S1) w ** 1 = 1 ** w = w
+            for v in other.lincomb:
+                if w[1].len()==0: #self に格納された mzv の長さが 0　である場合
+                    ret.addmzv(w[0]*v[0],v[1]) # ret に　上の mzv と other の mzv の係数の積　と other の mzv を ret に格納する 
+                elif v[1].len()==0: #other に格納された mzv の長さが 0　である場合
+                    ret.addmzv(w[0]*v[0],w[1]) # ret に　上の mzv と other の mzv の係数の積　と self の mzv を ret に格納する 
+                else: #その他の場合
+                    #参考　(S2) a ( w ** bv) + b ( aw ** b)
+                    a=w[1].index[0] # w の mzv の最初の一文字を a に格納する
+                    b=v[1].index[0] # v の mzv の最初の一文字を b に格納する
+                    
+                    # a ( w ** bv)
+                    ret.addLinComb( w[0]*v[0] * (mzv([a]) & (w[1].removeFirstLetter() ** mzvlincomb(v[1]) )) )
+                    # b ( aw ** b)
+                    ret.addLinComb( w[0]*v[0] * (mzv([b]) & (mzvlincomb(w[1]) ** v[1].removeFirstLetter() ) )) 
+        return ret # ret を返す
+            
+    # Gives the coefficient of the mzv "index"    
+    # self の中に格納されている mzv 中から引数と同じ mzv がある場合はその係数を返す関数　（特に、ない場合は0を返す） 
+    #後に、関係式を作りその際に係数からなる行列を作成する際に利用する
+    def getCoefficient(self,index):
+        for t in self.lincomb:
+            if t[1]==mzv(index): # self  の mzv の中でmzv型にした引数　index と等しいとき t[0] (selfの係数)を返す
+                return t[0]
+        return 0  #その他のとき0を返す
+    
+    #引き算の定義 (既に和とスカラー倍が定義されているためそれを利用する)
+    def __sub__(self, other):
+        return self+(-1)*other
+    
+    
+    # Add two linear combinations
+    #mzvlincomb型での和を+を用いて定義
+    def __add__(self, other):
+        # Make an empty linear combination
+        ret=mzvlincomb() #空のmzvlincomb型のretを用意する
+        
+        # Add all mzvs from self to this linear combination
+        for w in self.lincomb: # self の係数w[0]とmzv w[1] を ret 格納する
+            ret.addmzv(w[0],w[1])   
+            
+        if isinstance(other,mzv): #otherがmzv型である場合
+            ret.addmzv(1,other) #係数1 other (mzv型)をretに格納する
+        else: #その他の場合
+            # Add all mzvs from other to this linear combination
+            for w in other.lincomb: # other の係数w[0]とmzv w[1] を ret 格納する
+                ret.addmzv(w[0],w[1])  
+            
+        return ret  #ret を返す
+        
+    # Add a mzv to the linear combination
+    #addmzv関数を定義　引数は３つでmzvlincomb型と(mzvの)係数とmzv型
+    #作成の目的はmzvlincomb型の演算子(和や積)などを定義する際にmzv型の値をlincomb型の値の中に追加できるようにしたいため
+    #ここでは同じmzvは係数を計算しまとめられるようにもしている
+    def addmzv(self,factor,w):
+        # look for the mzv and if its already in our lincomb then add the factor
+        if factor!=0:
+                for wo in self.lincomb:
+                    if wo[1]==w: #selfの中に格納されている mzv型の値が引数のmzvに等しい場合
+                        wo[0]+=factor  #selfの中に格納されている mzvの係数に引数のmzvの係数を想定したfactorを加える
+
+                        if wo[0]==0: #係数が0となる場合
+                            self.lincomb.remove(wo) #元のlincomb型の中から係数0とその組みとなるmzvを消す
+                        return 
+
+                    # the mzv w is not there yet, so add it
+                self.lincomb.append([factor,w]) #計算したfactorと引数のmzv型　wを組みにしてlincomb型に追加する
+        
+        
+    # Add a linear combination of mzv to the current linear combination
+    #addlinConb関数を定義
+    #linconb型同士を１つにまとめる演算を作る 上で定義したmzv型とmzvlincomb型をまとめるaddmzv関数を利用して作成する
+    def addLinComb(self,wlc):
+        for w in wlc.lincomb:
+            self.addmzv(w[0],w[1])  #引数のmzvlincomb型のwlcの係数とmzvをaddmzv関数を用いてself(mzvlincomb型)に追加していく
+            
+    
+    def toMZV(self):
+        s=0
+        
+        for w in self.lincomb:
+            s+=w[0]*(w[1].toMZV())
+        
+        return s
+    
+
+    
+    def regst(self):
+        
+        rel=mzvlincomb()
+        for t in self.lincomb:
+            rel.addLinComb(t[0]*(t[1].regst()))
+    
+        
+        return rel
+    
+    def regsh(self):
+        
+        rel=mzvlincomb()
+        
+        for t in self.lincomb:
+            rel.addLinComb(t[0]*(t[1].regsh()))
+    
+        
+        return rel
+    
+    def dual(self):
+        
+        rel=mzvlincomb()
+        
+        for t in self.lincomb:
+            rel.addLinComb(t[0]*(t[1].dual()))
+            
+        
+        return rel
+        
+        
+    
+    
+
+                
+    #文字列表現のためのメソッド(既存の計算などがある公式的な文字列表現)
+    def __repr__(self):
+        if self.lincomb==[]: #self　に空のリストが格納されている場合
+            return "0" #(empty) と表現するようにする
+        ret=""# retを空の文字列と定義する
+        for w in self.lincomb: 
+            #[A,B][条件]とした場合: 条件が True --> B , False --> A となることを利用する
+            #(最初にw[0]が1でない)  True --> (条件2) , False --> "+"
+            #(条件2) (i) w[0]が0より大きい True -->"+" , False --> "" 
+            #              (ii) w[0]が-1でない  True -->str(w[0])+"*" , False --> "-" 
+            #               (i)+(ii)
+            # これを繰り返し、ret に格納していく
+            ret+=["+",["","+"][w[0]>0]+["-",str(w[0])+"*"][w[0]!=-1]][w[0]!=1]+repr(w[1])
+        return [ret,ret[1:]][ret[0]=="+"] #先頭が+から始まる場合は+を除いてret を返す
+    
+    def toLatex(self):
+        if self.lincomb==[]: #self　に空のリストが格納されている場合
+            return "" 
+        ret=""# retを空の文字列と定義する
+        s=""
+        for w in self.lincomb: 
+            #[A,B][条件]とした場合: 条件が True --> B , False --> A となることを利用する
+            #(最初にw[0]が1でない)  True --> (条件2) , False --> "+"
+            #(条件2) (i) w[0]が0より大きい True -->"+" , False --> "" 
+            #              (ii) w[0]が-1でない  True -->str(w[0])+"*" , False --> "-" 
+            #               (i)+(ii)
+            # これを繰り返し、ret に格納していく
+            if denominator(w[0])==1:
+                ret+=["+",["","+"][w[0]>0]+["-",str(w[0])][w[0]!=-1]][w[0]!=1]+w[1].toLatex()
+            
+            if denominator(w[0])!=1:
+                s="\\frac{"+str(numerator(w[0]).abs())+"}{"+ str(denominator(w[0])) + "}"
+                ret+=["+",["","+"][w[0]>0]+[s,"-"+s][w[0]<0]][w[0]!=1]+w[1].toLatex()
+                
+            s=[ret,ret[1:]][ret[0]=="+"] #先頭が+から始まる場合は+を除いて ret を返す
+        print(s)
+            
+        pass
+    
+    def toMZVLatex(self):
+        
+        if self.lincomb==[]: #self　に空のリストが格納されている場合
+            return "" 
+        
+        ret="" # retを空の文字列と定義する
+        s=""
+        for w in self.lincomb: 
+            if denominator(w[0])==1:
+                ret+=["+",["","+"][w[0]>0]+["-",str(w[0])][w[0]!=-1]][w[0]!=1]+w[1].toMZVLatex1()
+            
+            elif denominator(w[0])!=1:
+                s="\\frac{"+str(numerator(w[0]).abs())+"}{"+ str(denominator(w[0])) + "}"
+                ret+=["+",["","+"][w[0]>0]+[s,"-"+s][w[0]<0]][w[0]!=1]+w[1].toMZVLatex1()
+                
+            s=[ret,ret[1:]][ret[0]=="+"] #先頭が+から始まる場合は+を除いて ret を返す
+            
+        print(s)
+            
+        pass
+    
+    def simplifyN(self,prec,c=1000):
+    
+        gp.set_precision(prec)
+        w=self.weight()
+        rel=mzvlincomb()
+
+        for dep in range(1,w):
+            l=inddepth(w,dep)
+            s=[self.toMZV()]
+            t=[]
+            for m in l:
+                s+=[(-1)*mzv(np.array(m)).toMZV()]
+                t+=[m]
+                lis=list(gp.lindep(s))
+
+                i=0
+                if lis[0]!=0:
+                    for n in lis:
+
+                        if abs(int(n)) < c:
+                            i+=1
+
+                    if i==len(lis):
+                        dd=lis[0]
+                        lis=lis[1:]
+                        i=0
+                        for n in lis:
+                            rel.addmzv(n/dd,mzv(np.array(t[i])))
+                            i+=1
+
+                        return rel
+
+        return 0
+    
+    
+    
+    
+    
+
+        
+#後に重さkのadmissible indexを全て列挙する関数 indicesを定義する際に用いる
+#separate1 は　重さ k に対しての1つの数または2つの数を　１組にしたindexを集める(特に、２組の場合は左の数字は１より大きい)
+def separate1(x): #引数 x は重さを想定している
+    a=[] #空のリスト型 a を定義する
+    
+    #a.append([x]) # a にリスト[x]を追加 (1組のindex) 
+    for i in range(x-2): # 和がx (つまり重さ x )の左の数が１でない２つの数を組にしたリストをaに追加していく
+        a.append([x-i-1,i+1])
+        
+    return a
+
+#後に重さkのadmissible indexを全て列挙する関数 indicesを定義する際に用いる
+#separate1 は　重さ k に対しての1組または2組のindexを集める(特に、２組の場合は左の数字は１以上)
+def separate2(x): #引数 x は重さを想定している
+    a=[] #空のリスト型 a を定義する
+    
+    for i in range(x-1): # 和がx (つまり重さ x )の左の数が１以上の２つの数を組にしたリストをaに追加していく
+        a.append([x-i-1,i+1])
+        
+    return a
+
+
+#後に重さkのadmissible indexを全て列挙する関数 indices を定義する
+def indices(x): #引数 x は重さを想定している
+        
+    if x <= 1: #重さ x が1以下である場合は空のリスト型[]を返す
+        return []
+    if x==2: #重さ x が２である場合 リスト型 [2]のみを格納したリスト型を返す
+        return [[2]]
+    
+    s=[]  #空のリスト型 s を定義する （全てのindexを集める用の変数　）
+    d=[]  #空のリスト型 d を定義する (計算過程を通してできたindexを一時的に格納する用の変数)
+    t=[]  #空のリスト型 t を定義する (計算過程で出るindexの一部分を保管する用の変数)
+    
+    s+=[[x]]
+
+    s+=separate1(x) #sにseparate1関数を用いて 深さ2 重さx のindexをリスト化し追加する
+    
+    i=1 #ループのカウント用
+    while(1):
+        if s[i][len(s[i])-1]!=1: #sに格納された i 番目のindexのリストの一番右の数が1でない場合
+            for b in range(len(s[i])-1): # t に s のリストを追加していく
+                t+=[s[i][b]]
+                
+            for a in separate2(s[i][len(s[i])-1]): # s の i 番目の一番右の数の重さに対してseparate2関数を入れ１を含む２つの数からなる組aを作り
+                                                #  t と a を合わせたリストをdに格納し、s に　[d] を格納していく 
+                d=t+a
+                s+=[d]
+            t=[]
+        i+=1
+        if i==len(s): #　i　が　s　のリストの長さと等しくなる場合はループを終える
+            break
+
+    return s #リスト型の s を返す
+
+
+#doubleshuffleの定義 (引数はリスト型2つを想定していることに注意)
+#double shuffle : w \shuffle v - w * v で定義されている ("finite"であるか否かは入力のmzvによる　 \mathfrak{H}_0か否か)
+#ここでは\shuffle --> *  , *  --> % が対応している
+def doubleshuffle(w,v):
+    return mzv(w) * mzv(v) +(-1)*(mzv(w) % mzv(v))
+
+
+# Write all finite double shuffle relations into a matrix
+#finite double shuffle(つまり\mathfrak{H}_0の元を想定している) の重さkに関する線形関係式から行列を作る関数 (引数は重さ k)
+def relationmatrix(k):
+    
+    M=[] #空のリスト型 M を用意する
+    gen=indices(k) #gen に　重さ k のindex を全て入ったリストを格納する
+    
+    for k1 in range(2,int(k/2)+1):
+        k2=k-k1 #ループする k1 に対して和が k となるように k2 を定義する
+        gen1=indices(k1) #gen1 に　重さ k1 のindex を全て入ったリストを格納する
+        gen2=indices(k2) #gen2 に　重さ k2 のindex を全て入ったリストを格納する
+        for w1 in gen1:
+            for w2 in gen2:
+                rel=doubleshuffle(w1,w2) #gen1 と gen2 の double shuffle の計算結果を rel に格納する
+                col=[] #空のリスト型 col を用意する
+                for g in gen: # col に getCoffucient関数(引数と同じ mzv があれば係数を返す関数)を通して得た値を col に格納する
+                    #もう少し詳しく、rel の中で g (重さ k の index)と同じ mzv があれば col に格納する
+                        col.append(rel.getCoefficient(g)) 
+                M.append(col) #上で計算した col を M に追加していく
+                
+    return np.matrix(M).T # M の転置行列を返す
+
+
+
+# Write all finite double shuffle relations + "hoffman relation" into a matrix
+# Corresponds to Conjecture 3.6 (Minh-Petitot)
+# Conjecture 3.6 を　再現した関数 ( finite double shuffle relations + "hoffman relation" )　想定している index が　多い 
+#(つまり\mathfrak{H}_1の元も追加で想定している) プログラムとしての違いはループの始め方と k1　が[1]という想定を入れているところ
+def extrelationmatrix(k): #Make matrix
+    
+    M=[] #空のリスト型 M を用意する
+    gen=indices(k) #gen に　重さ k のindex を全て入ったリストを格納する
+    
+    for k1 in range(1,int(k/2)+1): #ループは 1 から始めている
+        k2=k-k1 #ループする k1 に対して和が k となるように k2 を定義する
+        
+        if k1==1: #k1が1の場合
+            gen1=[[1]] #gen1に[1]を格納する
+        else: #その他の場合
+            gen1=indices(k1) #gen1 に　重さ k1 のindex を全て入ったリストを格納する
+        
+        gen2=indices(k2) #gen2 に　重さ k2 のindex を全て入ったリストを格納する
+        for w1 in gen1:
+            for w2 in gen2:
+                rel=doubleshuffle(w1,w2) #gen1 と gen2 の double shuffle の計算結果を rel に格納する
+                col=[] #空のリスト型 col を用意する
+                for g in gen: # col に getCoffucient関数(引数と同じ mzv があれば係数を返す関数)を通して得た値を col に格納する
+                                #もう少し詳しく、rel の中で g (重さ k の index)と同じ mzv があれば col に格納する
+                    col.append(rel.getCoefficient(g))
+                M.append(col) #上で計算した col を M に追加していく
+                
+    return np.matrix(M).T # M の転置行列を返す
+
+
+# Conjecture 3.7 を　再現した関数 
+#プログラムとしての違いはループの終わりがextrelationmatrixに比べて圧倒的に少ないことである
+# Make the matrix for the conjecture of Kaneko et. al. (Conjecture 3.7)
+def conjecturematrix(k): #Make matrix
+    
+    M=[] #空のリスト型 M を用意する
+    columninfo=[] #空のリスト型 columninfo を用意する
+    gen=indices(k) #gen に　重さ k のindex を全て入ったリストを格納する
+    
+    #以下の条件は次のループ回数を必要最小限にすることを目的としている
+    if int(k/2)+1 < 4: # int(k/2)+1 が 4未満である場合
+        i=int(k/2)+1 # i に int(k/2)+1 を格納する
+    else: #その他の場合は、i=4
+        i=4
+    
+        
+    for k1 in range(1,i):#ループ回数がこの関数の特徴で i 最大でも４である
+        k2=k-k1 #ループする k1 に対して和が k となるように k2 を定義する
+        
+        if k1==1: #gen1に[1]を格納する
+            gen1=[[1]] #gen1に[1]を格納する
+        else: #その他の場合
+            gen1=indices(k1) #gen1 に　重さ k1 のindex を全て入ったリストを格納する
+        
+        gen2=indices(k2) #gen2 に　重さ k2 のindex を全て入ったリストを格納する
+        for w1 in gen1:
+            for w2 in gen2: 
+                rel=doubleshuffle(w1,w2) #gen1 と gen2 の double shuffle の計算結果を rel に格納する
+                col=[]  #空のリスト型 col を用意する
+                for g in gen:
+                    col.append(rel.getCoefficient(g)) # col に getCoffucient関数(引数と同じ mzv があれば係数を返す関数)を通して得た値を col に格納する
+                            
+                #もう少し詳しく、rel の中で g (重さ k の index)と同じ mzv があれば col に格納する
+                M.append(col) #上で計算した col を M に追加していく
+                columninfo.append([w1,w2]) #各mzv w1,w2 をリストの中に入れcolumninfo に格納する
+    
+
+    return [Matrix(M).T,gen,columninfo,M] #リストを返す (M の転置行列, 重さk のindex, mzvを組にしリストに入れたcolumninfo)
+
+
+# I try to make a dimension (P44 open ploblem3.3)
+# P44 open ploblem3.3　を　再現した関数 (ker \zeta の 次元を考える) 
+#特にこのプログラムはextrelationmatrix　を用いて計算している
+def extradim(k):
+    return 2^(k-2)-np.linalg.matrix_rank(extrelationmatrix(k))
+
+# P44 open ploblem3.3　を　再現した関数 (ker \zeta の 次元を考える) 
+#特にこのプログラムはconjecturematrixを用いて計算している
+def Condim(k):
+    A=conjecturematrix(k)
+    return 2^(k-2)-np.linalg.matrix_rank(A[0])
+
+
+#dualvector関数を作成する。これは、indexを引数として、indexの重さ全体のベクトルから考えた時のそのindexとdualのベクトルを作成する
+def dualvector(ind): #引数 ind は indexを想定している
+    k=sum(ind) #引数の重さ k
+    s=[] #空のリスト型 col を用意する
+    t=mzv(ind).dual() #tに引数のindexのdealを格納する
+    for n in indices(k):
+        if mzv(n)==mzv(ind): #　n(重さkを走る) が 引数と等しい場合　
+            s.append(1) #sに1を格納する
+        elif mzv(n)==t:  #　n(重さkを走る) が 引数のdualと等しい場合　
+            s.append(-1) #sに-1を格納する
+        else:  s.append(0) #その他は0
+        
+    return vector(s) #sをvector型にして返す
+
+# Ax=B を満たす x を求める関数 (A : conjecturematrix, B : dualvector) これにより、あるindex に対してdual の関係式を double shuffle の　関係式で表せる
+def proveduality(ind):
+    k=sum(ind) #引数の重さ k
+    
+    A=conjecturematrix(k) #Aに重さkのconjecturematrixを格納する(注意:conjecturematrixはリスト型であり直接的な行列でない, 行列はリストの最初にある)
+    B=dualvector(ind) #Bにdualの関係式に関するベクトルを格納する
+
+    return [A[0].solve_right(B),A[2]] #Aの行列部分とBによるAx=B のx の解 とAの mzv をリストにしたものを組にしたリストを返す
+
+
+
+def indvector(rel):
+
+        s=[]
+    
+        k=sum(rel.lincomb[0][1].index.tolist())
+        for l in range(len(indices(k))):
+            s+=[0]
+    
+
+        for n in rel.lincomb:
+            for j in range(len(indices(k))):
+                if indices(k)[j]==n[1].index.tolist():
+                    s[j]=n[0]
+            
+        return vector(s)
+
+
+    
+def indvectorlist(rel):
+
+        s=[]
+    
+        k=sum(rel.lincomb[0][1].index.tolist())
+        for l in range(len(indices(k))):
+            s+=[0]
+    
+
+        for n in rel.lincomb:
+            for j in range(len(indices(k))):
+                if indices(k)[j]==n[1].index.tolist():
+                    s[j]=n[0]
+            
+        return s
+
+    
+    
+    
+    
+    #weight 
+def wightlist(rel): #[4,[ weght 4 list... ], 5, [ weght 5 list... ]]
+    s=[]
+    i=0
+    t=[]
+    l=[]
+    for n in rel.lincomb:
+        t+=[n[1].index.tolist()]
+
+    while(1):
+        
+        w=t[0]
+        s+=[sum(w)]
+        gen=mzvlincomb()
+        for n in rel.lincomb:
+            if sum(w)==sum(n[1].index.tolist()):
+                gen.addmzv(n[0],mzv(n[1].index))
+                t.remove(n[1].index.tolist())
+        s+=[gen]
+        l+=[s]
+        s=[]
+        if len(t)==0:
+            break
+                
+    return l
+
+        
+        
+
+def checkrelation(rel): #引数はmzvlincomb型
+    
+    s=[]
+    for n in wightlist(rel):
+        k=n[0]
+        A=conjecturematrix(k)
+        B=indvector(n[1])
+        
+        #print(np.linalg.matrix_rank(indvectorlist(n[1])+A[3]))
+        #print(np.linalg.matrix_rank(A[3]))
+        if np.linalg.matrix_rank([indvectorlist(n[1])]+A[3])==np.linalg.matrix_rank(A[3]):
+            s+=[[A[0].solve_right(B),A[2]]]
+            
+        else:
+            s+=["(Not possible)"]
+        
+        
+
+    return s
+
+def countY(i):
+    
+    s=[]
+    
+    for j in range(i):
+        s+=[1]
+        
+    # Short version: s=[1 for i in range(i)]
+    # Shortest version: s=[1]*i
+        
+    return mzv(s)
+
+def contistY(i):
+    
+    ret=mzvlincomb()
+    if i==0:
+        ret.addmzv(1,mzv([]))
+    if i>=1:
+        ret.addmzv(1,mzv([1]))
+
+    if i>=2:
+        for j in range(i-1):
+            ret=ret*mzv([1])
+    
+        
+    return ret
+
+
+
+def reltoLatex(rel):
+    
+    cr = checkrelation(rel)
+    
+    for n in range(len(cr)):
+        if cr[n]=='(Not possible)':
+            print("Not possible")
+            return
+
+        
+    s=""
+    for i in range(len(cr[0][0])):
+        if cr[0][0][i]!=0:  #係数が0出ない時
+            if denominator(cr[0][0][i])==1: #係数が整数の時
+                if abs(cr[0][0][i])!=1:
+                    if cr[0][0][i] > 0:
+                        s+="+"+str(cr[0][0][i])+"ds("
+                        for j in range(len(cr[0][1][i])):
+                            s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                            if j!=len(cr[0][1][i])-1:
+                                s+=","
+                        s+=")"
+                    elif cr[0][0][i] < 0:
+                        s+="-"+str(abs(cr[0][0][i]))+"ds("
+                        for j in range(len(cr[0][1][i])):
+                            s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                            if j!=len(cr[0][1][i])-1:
+                                s+=","
+                        s+=")"
+                    
+                elif cr[0][0][i]==1: # 1 の時
+                        s+="+"+"ds("
+                        for j in range(len(cr[0][1][i])):
+                            s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                            if j!=len(cr[0][1][i])-1:
+                                s+=","
+                        s+=")"
+                    
+                elif cr[0][0][i]==-1:
+                        s+="-"+"ds("
+                        for j in range(len(cr[0][1][i])):
+                            s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                            if j!=len(cr[0][1][i])-1:
+                                s+=","
+                        s+=")"
+            
+            if denominator(cr[0][0][i])!=1: #係数が整数でない時
+
+                    if abs(cr[0][0][i])!=-1:
+                        if cr[0][0][i] > 0:
+                                s+="+ \\frac{"+ str(abs(numerator(cr[0][0][i])))+"}{"+str(denominator(cr[0][0][i]))+"}ds("
+                                for j in range(len(cr[0][1][i])):
+                                    s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                                    if j!=len(cr[0][1][i])-1:
+                                        s+=","
+                                s+=")"
+                        elif cr[0][0][i] < 0:
+                            s+="- \\frac{"+ str(abs(numerator(cr[0][0][i])))+"}{"+str(denominator(cr[0][0][i]))+"}ds("
+                            for j in range(len(cr[0][1][i])):
+                                s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                                if j!=len(cr[0][1][i])-1:
+                                        s+=","
+                            s+=")"
+                    
+                    elif cr[0][0][i]==1:
+                            s+="+"+"ds("
+                            for j in range(len(cr[0][1][i])):
+                                s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                                if j==len(cr[0][1][i])-1:
+                                    s+=","
+                            s+=")"
+                        
+                    elif cr[0][0][i]==-1:
+                            s+="-"+"ds("
+                            for j in range(len(cr[0][1][i])):
+                                    s+=mzv(np.array(cr[0][1][i][j])).toLatex()
+                                    if j==len(cr[0][1][i])-1:
+                                        s+="," 
+                            s+=")"
+                
+    
+    if s[0]=="+":
+        s=s[1:]
+        
+    print(s)
+        
+    return 
+
+def isHoffman(l):
+    return all(element==2 or element==3 for element in l)
+
+def remove23(k): #k is weight
+    s=[]
+    for c,t in enumerate(indices(k)):
+        if not isHoffman(t):
+            s+=[c]           
+
+    return s #2 と3を除いたリストの番号を返す
+            
+def where23(k): #k is weight
+    s=[]
+    for c,t in enumerate(indices(k)):
+        if isHoffman(t):
+            s+=[c]      
+
+    return s #2 と3のみのリストの番号を返す
+
+# Give all admissible indices of weight w and depth <=2
+def inddepth(w,d): #w is weight, d is depth     
+    s=[]
+
+    for i in indices(w):
+        if len(i)<=d:
+            s+=[i]
+    return s    
+    
+
+</script>
+</div>
+
+<h2>Your code</h2>
+    <div class="compute"><script type="text/x-sage"></script></div>
+    
+  </body>
+</html>
